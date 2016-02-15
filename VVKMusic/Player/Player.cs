@@ -10,27 +10,28 @@ namespace Player
 {
     public class Player : IPlayer
     {
-        private int stream;
+        private int _stream;
+        private BASSTimer _updateTimer = new BASSTimer();
 
         public Player()
         {
             BassNet.Registration("xxxddr3@gmail.com", "2X441017152222");
             if(!(Bass.BASS_Init(-1, 44100, BASSInit.BASS_DEVICE_DEFAULT, IntPtr.Zero)))
             {
-                throw new Exception();
+                throw new Exception("Error while initializing Player instance");
             }
         }
         public Status SetSource(Song playedSong)
         {
             if (playedSong.Downloaded)
             {
-                stream = Bass.BASS_StreamCreateFile(playedSong.DownloadedUri.LocalPath, 0, 0, BASSFlag.BASS_DEFAULT);
+                _stream = Bass.BASS_StreamCreateFile(playedSong.DownloadedUri.LocalPath, 0, 0, BASSFlag.BASS_DEFAULT);
             }
             else
             {
-                stream = Bass.BASS_StreamCreateURL(playedSong.Uri.ToString(), 0, 0, null, new IntPtr(0));
+                _stream = Bass.BASS_StreamCreateURL(playedSong.Uri.ToString(), 0, 0, null, new IntPtr(0));
             }
-            if (stream != 0)
+            if (_stream != 0)
             {
                 return Status.OK;
             }
@@ -39,9 +40,9 @@ namespace Player
                 if (playedSong.Downloaded)
                 {
                     playedSong.Downloaded = false;
-                    stream = Bass.BASS_StreamCreateURL(playedSong.Uri.ToString(), 0, 0, null, new IntPtr(0));
+                    _stream = Bass.BASS_StreamCreateURL(playedSong.Uri.ToString(), 0, 0, null, new IntPtr(0));
                 }
-                if (stream != 0)
+                if (_stream != 0)
                 {
                     return Status.OK;
                 }
@@ -53,7 +54,13 @@ namespace Player
         }
         public Status Play()
         {
-            if(Bass.BASS_ChannelPlay(stream, false))
+            try
+            {
+                _updateTimer.Start();
+            }
+            catch (NullReferenceException){}
+
+            if(Bass.BASS_ChannelPlay(_stream, false))
             {
                 return Status.OK;
             }
@@ -64,7 +71,13 @@ namespace Player
         }
         public Status Stop()
         {
-            if (Bass.BASS_ChannelStop(stream))
+            try
+            {
+                _updateTimer.Stop();
+            }
+            catch (NullReferenceException){}
+
+            if (Bass.BASS_ChannelStop(_stream))
             {
                 return Status.OK;
             }
@@ -75,7 +88,7 @@ namespace Player
         }
         public Status Pause()
         {
-            if (Bass.BASS_ChannelPause(stream))
+            if (Bass.BASS_ChannelPause(_stream))
             {
                 return Status.OK;
             }
@@ -88,9 +101,19 @@ namespace Player
         {
             return Status.OK;
         }
+        public int GetStream()
+        {
+            return _stream;
+        }
+        public Status SetTimer(int updateInterval, EventHandler e)
+        {
+            _updateTimer = new BASSTimer(updateInterval);
+            _updateTimer.Tick += e;
+            return Status.OK;
+        }
         ~Player()
         {
-            Bass.BASS_StreamFree(stream);
+            Bass.BASS_StreamFree(_stream);
             Bass.BASS_Free();
         }
     }
