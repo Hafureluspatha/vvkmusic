@@ -59,12 +59,10 @@ namespace Interface
         {
             int AppID = 5114224;
             string Scope = "audio";
-            (WebBrowser1.Child as System.Windows.Forms.WebBrowser).Navigate(String.Format("http://api.vkontakte.ru/oauth/authorize?client_id={0}&scope={1}&display=popup&response_type=token&revoke=1", AppID, Scope));
+            (webbrowserWebLogin.Child as System.Windows.Forms.WebBrowser).Navigate(String.Format("http://api.vkontakte.ru/oauth/authorize?client_id={0}&scope={1}&display=popup&response_type=token&revoke=1", AppID, Scope));
         }
-        private void WebBrowser1_DocumentCompleted(object sender, WebBrowserDocumentCompletedEventArgs e)
+        private void webbrowserWebLogin_DocumentCompleted(object sender, WebBrowserDocumentCompletedEventArgs e)
         {
-            System.Windows.Controls.TextBox UserName = (System.Windows.Controls.TextBox)FindName("UserName");
-            System.Windows.Controls.Button Submit = (System.Windows.Controls.Button)FindName("Submit");
             AccessToken = "";
             UserID = 0;
             if (e.Url.ToString().IndexOf("access_token") != -1)
@@ -81,9 +79,9 @@ namespace Interface
                         UserID = Convert.ToInt32(m.Groups["value"].Value);
                     }
                 }
-                WebBrowser1.Visibility = Visibility.Hidden;
-                UserName.Visibility = Visibility.Visible;
-                Submit.Visibility = Visibility.Visible;
+                webbrowserWebLogin.Visibility = Visibility.Hidden;
+                textboxUserName.Visibility = Visibility.Visible;
+                buttonSubmit.Visibility = Visibility.Visible;
             }
             
         }
@@ -91,21 +89,18 @@ namespace Interface
         {
             this.Close();
         }
-        private void TextBox_GotFocus(object sender, RoutedEventArgs e)
+        private void textboxUserName_GotFocus(object sender, RoutedEventArgs e)
         {
-            System.Windows.Controls.TextBox UserName = (System.Windows.Controls.TextBox)FindName("UserName");
-            UserName.Text = "";
+            textboxUserName.Text = "";
         }
-        private void TextBox_LostFocus(object sender, RoutedEventArgs e)
+        private void textboxUserName_LostFocus(object sender, RoutedEventArgs e)
         {
-            System.Windows.Controls.TextBox UserName = (System.Windows.Controls.TextBox)FindName("UserName");
-            if (UserName.Text == "")
-                UserName.Text = "Enter your name here";
+            if (textboxUserName.Text == "")
+                textboxUserName.Text = "Enter your name here";
         }
-        private void Button_Click(object sender, RoutedEventArgs e)
+        private void buttonSubmit_Click(object sender, RoutedEventArgs e)
         {
-            System.Windows.Controls.TextBox UserName = (System.Windows.Controls.TextBox)FindName("UserName");
-            RaiseCustomEvent(this, new CustomEventArgs(UserName.Text, AccessToken, UserID));
+            RaiseCustomEvent(this, new CustomEventArgs(textboxUserName.Text, AccessToken, UserID));
         }
     } 
 }

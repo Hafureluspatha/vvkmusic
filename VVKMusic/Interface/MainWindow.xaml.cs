@@ -2,12 +2,17 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Drawing;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
+using Un4seen.Bass;
+using Un4seen.Bass.Misc;
+
 
 namespace Interface
 {
@@ -16,14 +21,17 @@ namespace Interface
     /// </summary>
     public partial class MainWindow : Window
     {
-        public Playlist.Playlist Playlist1 = new Playlist.Playlist();
-        public Player.Player Player1 = new Player.Player();
-        public UserManager.UserManager UserManager1 = new UserManager.UserManager();
-        public VKAPI.VKAPI VKAPI1 = new VKAPI.VKAPI();
-        public Infrastructure.Infrastructure Infrastructure1 = new Infrastructure.Infrastructure();
-        public Downloader.Downloader Downloader1 = new Downloader.Downloader();
-        protected User CurrentUser = null;
-        protected int CurrentSong = 0;
+        private Playlist.Playlist Playlist1 = new Playlist.Playlist();
+        private Player.Player Player1 = new Player.Player();
+        private UserManager.UserManager UserManager1 = new UserManager.UserManager();
+        private VKAPI.VKAPI VKAPI1 = new VKAPI.VKAPI();
+        private Infrastructure.Infrastructure Infrastructure1 = new Infrastructure.Infrastructure();
+        private Downloader.Downloader Downloader1 = new Downloader.Downloader();
+
+        private User _CurrentUser = null;
+        private int _CurrentSong = 0;
+        private int _updateInterval = 50;
+        private int _tickCounter = 0;
         
         public MainWindow()
         {
@@ -33,51 +41,46 @@ namespace Interface
                 UserManager1.UpdateUserList(Infrastructure1.LoadListOfUsers());
             }
         }
-        private void Menu_Click(object sender, RoutedEventArgs e)
+        private void buttonMenu_Click(object sender, RoutedEventArgs e)
         {
-            ListBox MenuList = (ListBox)FindName("MenuList");
-            ListBox LoginAs = (ListBox)FindName("LoginAs");
-            Image MenuButtonImage = (Image)FindName("MenuButtonImage");
-            if (MenuList.Visibility == Visibility.Hidden)
+            if (listboxMenu.Visibility == Visibility.Hidden)
             {
-                MenuList.Visibility = Visibility.Visible;
+                listboxMenu.Visibility = Visibility.Visible;
                 MenuButtonImage.Source = new BitmapImage(new Uri("/Resources/Pictures/close_menu.png", UriKind.Relative));
             }
             else
             {
-                MenuList.Visibility = Visibility.Hidden;
-                LoginAs.Visibility = Visibility.Hidden;
-                LoginAs.UnselectAll();
-                MenuList.UnselectAll();
+                listboxMenu.Visibility = Visibility.Hidden;
+                listboxLoginAs.Visibility = Visibility.Hidden;
+                listboxLoginAs.UnselectAll();
+                listboxMenu.UnselectAll();
                 MenuButtonImage.Source = new BitmapImage(new Uri("/Resources/Pictures/menu.png", UriKind.Relative));
             }
         }
-        private void MenuList_PreviewMouseUp(object sender, MouseButtonEventArgs e)
+        private void listboxMenu_PreviewMouseUp(object sender, MouseButtonEventArgs e)
         {
-            ListBox MenuList = (ListBox)FindName("MenuList");
-            ListBox LoginAs = (ListBox)FindName("LoginAs");
-            ListBoxItem item = (ListBoxItem)MenuList.SelectedValue;
-            Image MenuButtonImage = (Image)FindName("MenuButtonImage");
+            ListBoxItem item = (ListBoxItem)listboxMenu.SelectedValue;
             if (item != null)
             {
                 switch (item.Content.ToString())
                 {
                     case "New Login":
-                        MenuList.Visibility = Visibility.Hidden;
+                        listboxMenu.Visibility = Visibility.Hidden;
+                        listboxLoginAs.Visibility = Visibility.Hidden;
                         MenuButtonImage.Source = new BitmapImage(new Uri("/Resources/Pictures/menu.png", UriKind.Relative));
                         WebLogin WebLogin1 = new WebLogin();
                         WebLogin1.RaiseCustomEvent += new EventHandler<CustomEventArgs>(WebLogin1_RaiseCustomEvent);
                         WebLogin1.Show();
-                        MenuList.UnselectAll();
+                        listboxMenu.UnselectAll();
                         break;
                     case "Login as...":
                         if (UserManager1.GetListOfUsers().Count > 0)
                         {
-                            LoginAs.Visibility = Visibility.Visible;
+                            listboxLoginAs.Visibility = Visibility.Visible;
                             ObservableCollection<User> oUsers = new ObservableCollection<User>(UserManager1.GetListOfUsers());
-                            LoginAs.DataContext = oUsers;
+                            listboxLoginAs.DataContext = oUsers;
                             Binding binding = new Binding();
-                            LoginAs.SetBinding(ListBox.ItemsSourceProperty, binding);
+                            listboxLoginAs.SetBinding(ListBox.ItemsSourceProperty, binding);
                         }
                         break;
                 }
@@ -89,14 +92,22 @@ namespace Interface
             SetUser(new User(e.Name, e.AccessToken, e.UserID.ToString(), SongList), false);
             
         }
-        private void LoginAs_PreviewMouseUp(object sender, MouseButtonEventArgs e)
+        private void listboxLoginAs_PreviewMouseUp(object sender, MouseButtonEventArgs e)
         {
-            SetUser((User)LoginAs.SelectedValue, true);
+            SetUser((User)listboxLoginAs.SelectedValue, true);
+        }
+        private void listboxLoginAs_MouseLeave(object sender, MouseEventArgs e)
+        {
+            MenuButtonImage.Source = new BitmapImage(new Uri("/Resources/Pictures/menu.png", UriKind.Relative));
+            listboxMenu.Visibility = Visibility.Hidden;
+            listboxLoginAs.Visibility = Visibility.Hidden;
+            listboxMenu.UnselectAll();
+            listboxLoginAs.UnselectAll();
         }
         private void SetUser(User user, bool wasAlreadyEnteringThroughThisApp)
         {
-            Player1.Stop();
-            CurrentUser = user;
+            Player1.StopAndStopTimer();
+            _CurrentUser = user;
             if (!wasAlreadyEnteringThroughThisApp)
             {
                 UserManager1.AddUser(user);
@@ -105,28 +116,24 @@ namespace Interface
             }
             else
             {
-                ListBox MenuList = (ListBox)FindName("MenuList");
-                ListBox LoginAs = (ListBox)FindName("LoginAs");
-                Image MenuButtonImage = (Image)FindName("MenuButtonImage");
                 List<Song> SongList = new List<Song>(VKAPI1.GetAudioExternal(user.ID, user.AccessToken));
                 UserManager1.UpdateUserListOfSongs(user.ID, SongList);
                 Playlist1.UpdateList(SongList);
                 MenuButtonImage.Source = new BitmapImage(new Uri("/Resources/Pictures/menu.png", UriKind.Relative));
-                MenuList.Visibility = Visibility.Hidden;
-                MenuList.UnselectAll();
-                LoginAs.Visibility = Visibility.Hidden;
-                LoginAs.UnselectAll();
+                listboxMenu.Visibility = Visibility.Hidden;
+                listboxMenu.UnselectAll();
+                listboxLoginAs.Visibility = Visibility.Hidden;
+                listboxLoginAs.UnselectAll();
 
             }
             if (user.SongList.Count > 0)
             {
-                CurrentSong = 0;
-                Player1.SetSource(user.SongList[CurrentSong]);
+                _CurrentSong = 0;
+                Player1.SetSource(user.SongList[_CurrentSong]);
                 RenderPlaylist(user.SongList);
                 RenderNameAndSelectedSong();
-                TextBox SongTime = (TextBox)FindName("SongTime");
-                SongTime.Text = String.Format("0:00 / {0}", user.SongList[0].Duration);
-                Player1.Play();
+                Player1.SetTimer(_updateInterval, timerUpdate_Tick);
+                Player1.PlayAndStartTimer();
             }
             else
             {
@@ -140,84 +147,98 @@ namespace Interface
                 }
             }
         }
-        private void Download_Click(object sender, RoutedEventArgs e)
+        private void buttonDownload_Click(object sender, RoutedEventArgs e)
         {
             List<Song> ListToDownload = new List<Song>();
-            if (e.GetHashCode() == btnDownload.GetHashCode())
-                ListToDownload.Add(Playlist1.GetList()[CurrentSong]);
+            if (sender.GetHashCode() == buttonDownload.GetHashCode())
+                ListToDownload.Add(Playlist1.GetList()[_CurrentSong]);
             else
                 ListToDownload = Playlist1.GetList();
             if (Downloader1.DownloadSong(ListToDownload) == Common.Common.Status.Error)
                 MessageBox.Show("Ошибка скачивания", "", MessageBoxButton.OK);
-            else
-                MessageBox.Show("Скачивание завершено", "", MessageBoxButton.OK);
         }
-        private void Prev_Click(object sender, RoutedEventArgs e)
+        private void buttonPrev_Click(object sender, RoutedEventArgs e)
         {
-            Player1.Stop();
+            Player1.StopAndStopTimer();
             List<Song> SongList = Playlist1.GetList();
             if(SongList.Count > 0)
-                if(CurrentSong > 0)
+                if(_CurrentSong > 0)
                 {
-                    CurrentSong--;
+                    _CurrentSong--;
                 }
                 else
                 {
-                    CurrentSong = SongList.Count - 1;
+                    _CurrentSong = SongList.Count - 1;
                 }
-            Player1.SetSource(SongList[CurrentSong]);
-            Player1.Play();
+            Player1.SetSource(SongList[_CurrentSong]);
+            Player1.PlayAndStartTimer();
             RenderNameAndSelectedSong();
         }
-        private void Next_Click(object sender, RoutedEventArgs e)
+        private void buttonNext_Click(object sender, RoutedEventArgs e)
         {
-            Player1.Stop();
+            Player1.StopAndStopTimer();
             List<Song> SongList = Playlist1.GetList();
             if (SongList.Count > 0)
-                if (CurrentSong < SongList.Count - 1)
+                if (_CurrentSong < SongList.Count - 1)
                 {
-                    CurrentSong++;
+                    _CurrentSong++;
                 }
                 else
                 {
-                    CurrentSong = 0;
+                    _CurrentSong = 0;
                 }
-            Player1.SetSource(SongList[CurrentSong]);
-            Player1.Play();
+            Player1.SetSource(SongList[_CurrentSong]);
+            Player1.PlayAndStartTimer();
             RenderNameAndSelectedSong();
         }
-        private void Pause_Click(object sender, RoutedEventArgs e)
+        private void buttonPause_Click(object sender, RoutedEventArgs e)
         {
-            Player1.Pause();
+            Player1.PauseAndStopTimer();
         }
-        private void Play_Click(object sender, RoutedEventArgs e)
+        private void buttonPlay_Click(object sender, RoutedEventArgs e)
         {
-            Player1.Play();
+            Player1.PlayAndStartTimer();
         }
-        private void Stop_Click(object sender, RoutedEventArgs e)
+        private void buttonStop_Click(object sender, RoutedEventArgs e)
         {
-            Player1.Stop();
+            Player1.StopAndStopTimer();
         }
-        private void Search_Click(object sender, RoutedEventArgs e)
+        private void buttonSearch_Click(object sender, RoutedEventArgs e)
         {
-            TextBox Search = (TextBox)FindName("Search");
-            RenderPlaylist(Playlist1.SearchSong(Search.Text.ToLower()));
+            RenderPlaylist(Playlist1.SearchSong(textboxSearch.Text.ToLower()));
         }
-        private void Mix_Click(object sender, RoutedEventArgs e)
+        private void textboxSearch_GotFocus(object sender, RoutedEventArgs e)
+        {
+            textboxSearch.Text = "";
+        }
+        private void textboxSearch_LostFocus(object sender, RoutedEventArgs e)
+        {
+            if (textboxSearch.Text == "")
+                textboxSearch.Text = "Search";
+        }
+        private void textboxSearch_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
+            {
+                RenderPlaylist(Playlist1.SearchSong(textboxSearch.Text.ToLower()));
+            }
+        }
+        private void buttonMix_Click(object sender, RoutedEventArgs e)
         {
             Playlist1.MixPlaylist();
             RenderPlaylist(Playlist1.GetList());
         }
-        private void Sort_Click(object sender, RoutedEventArgs e)
+        private void buttonSort_Click(object sender, RoutedEventArgs e)
         {
             Playlist1.SortByDownloaded();
             RenderPlaylist(Playlist1.GetList());
         }
-        private void Close_Click(object sender, RoutedEventArgs e)
+        private void buttonClose_Click(object sender, RoutedEventArgs e)
         {
+            Player1.StopAndStopTimer();
             this.Close();
         }
-        private void Expand_Click(object sender, RoutedEventArgs e)
+        private void buttonExpand_Click(object sender, RoutedEventArgs e)
         {
             if (this.WindowState == WindowState.Maximized)
             {
@@ -228,74 +249,115 @@ namespace Interface
                 this.WindowState = WindowState.Maximized;
             }
         }
-        private void Collapse_Click(object sender, RoutedEventArgs e)
+        private void buttonCollapse_Click(object sender, RoutedEventArgs e)
         {
             this.WindowState = WindowState.Minimized;
         }
-        private void Search_GotFocus(object sender, RoutedEventArgs e)
-        {
-            TextBox Search = (TextBox)FindName("Search");
-            Search.Text = "";
-        }
-        private void Search_LostFocus(object sender, RoutedEventArgs e)
-        {
-            TextBox Search = (TextBox)FindName("Search");
-            if (Search.Text == "")
-                Search.Text = "Search";
-        }
-        private void Draggable_MouseDown(object sender, MouseButtonEventArgs e)
+        private void rectangleDraggable_MouseDown(object sender, MouseButtonEventArgs e)
         {
             this.DragMove();
         }
         private void RenderNameAndSelectedSong()
         {
-            TextBox SongName = (TextBox)FindName("SongName");
             List<Song> SongList = Playlist1.GetList();
-            SongName.Text = SongList[CurrentSong].ToString();
-            ListBox PlaylistBox = (ListBox)FindName("Playlist");
-            if(PlaylistBox.Items != null)
-                PlaylistBox.SelectedItem = (PlaylistBox.Items[CurrentSong]);
+            textboxSongName.Text = SongList[_CurrentSong].ToString();
+            if(listboxPlaylist.Items != null)
+                listboxPlaylist.SelectedItem = (listboxPlaylist.Items[_CurrentSong]);
         }
         private void RenderPlaylist(List<Song> SongList) 
         {
-            ListBox PlaylistBox = (ListBox)FindName("Playlist");
             ObservableCollection<Song> oSong = new ObservableCollection<Song>(SongList);
-            PlaylistBox.DataContext = oSong;
+            listboxPlaylist.DataContext = oSong;
             Binding binding = new Binding();
-            PlaylistBox.SetBinding(ListBox.ItemsSourceProperty, binding);
+            listboxPlaylist.SetBinding(ListBox.ItemsSourceProperty, binding);
         }
-        private void Search_TextChanged(object sender, TextChangedEventArgs e)
+        private void textboxSearch_TextChanged(object sender, TextChangedEventArgs e)
         {
-            TextBox Search = (TextBox)FindName("Search");
-            if(Search.Text == "")
+            if(textboxSearch.Text == "")
             {
                 RenderPlaylist(Playlist1.GetList());
             }
         }
-        private void Playlist_PreviewMouseUp(object sender, MouseButtonEventArgs e)
+        private void listboxPlaylist_PreviewMouseUp(object sender, MouseButtonEventArgs e)
         {
-            ListBox PlaylistBox = (ListBox)FindName("Playlist");
-            if (PlaylistBox.SelectedIndex != -1 && CurrentSong != PlaylistBox.SelectedIndex)
+            if (listboxPlaylist.SelectedIndex != -1 && _CurrentSong != listboxPlaylist.SelectedIndex)
             {
-                CurrentSong = PlaylistBox.SelectedIndex;
+                _CurrentSong = listboxPlaylist.SelectedIndex;
                 RenderNameAndSelectedSong();
-                Player1.Stop();
+                Player1.StopAndStopTimer();
                 List<Song> SongList = Playlist1.GetList();
-                Player1.SetSource(SongList[CurrentSong]);
-                Player1.Play();
+                Player1.SetSource(SongList[_CurrentSong]);
+                Player1.PlayAndStartTimer();
             }
         }
-        private void LoginAs_MouseLeave(object sender, MouseEventArgs e)
+
+        #region ProgressBar
+        private void timerUpdate_Tick(object sender, System.EventArgs e)
         {
-            Image MenuButtonImage = (Image)FindName("MenuButtonImage");
-            ListBox MenuList = (ListBox)FindName("MenuList");
-            ListBox LoginAs = (ListBox)FindName("LoginAs");
-            MenuButtonImage.Source = new BitmapImage(new Uri("/Resources/Pictures/menu.png", UriKind.Relative));
-            MenuList.Visibility = Visibility.Hidden;
-            LoginAs.Visibility = Visibility.Hidden;
-            MenuList.UnselectAll();
-            LoginAs.UnselectAll();
+            int _stream = Player1.Stream;
+            if (Bass.BASS_ChannelIsActive(_stream) == BASSActive.BASS_ACTIVE_PLAYING)
+            { }
+            else
+            {
+                DrawPosition(-1, -1);
+                return;
+            }
+            _tickCounter++;
+            if (_tickCounter == 5)
+            {
+                long pos = Bass.BASS_ChannelGetPosition(_stream); // position in bytes
+                long len = Bass.BASS_ChannelGetLength(_stream); // length in bytes
+                // display the position every 250ms (since timer is 50ms)
+                _tickCounter = 0;
+                double totaltime = Bass.BASS_ChannelBytes2Seconds(_stream, len);
+                double elapsedtime = Bass.BASS_ChannelBytes2Seconds(_stream, pos);
+                Application.Current.Dispatcher.BeginInvoke(DispatcherPriority.Normal, new Action(() => 
+                    textboxSongTime.Text = String.Format("{0:#0.00} / {1:#0.00}", Utils.FixTimespan(elapsedtime, "MMSS"), Utils.FixTimespan(totaltime, "MMSS"))));
+                DrawPosition(pos, len);
+            }
         }
+        private void DrawPosition(long pos, long len)
+        {
+            if (len == 0 || pos < 0)
+            {
+                Application.Current.Dispatcher.BeginInvoke(DispatcherPriority.Normal, new Action(() =>
+                {
+                    rectangleProgressBarElapsed.Width = 0;
+                    circleProgressBar.Visibility = Visibility.Hidden;
+                    circleProgressBar.Margin = new Thickness(0);
+                }));
+                return;
+            }
+
+            if (circleProgressBar.Visibility == Visibility.Hidden)
+                Application.Current.Dispatcher.BeginInvoke(DispatcherPriority.Normal, new Action(() =>
+                    circleProgressBar.Visibility = Visibility.Visible));
+
+            Application.Current.Dispatcher.BeginInvoke(DispatcherPriority.Normal, new Action(() =>
+            {
+                double bpp = len / (double)rectangleProgressBarMain.Width;  // bytes per pixel
+                int x = (int)Math.Round(pos / bpp);
+                rectangleProgressBarElapsed.Width = x;
+                circleProgressBar.Margin = new Thickness(x, 0, 0, 0);
+            }));
+        }
+        private void rectangleProgressBarMain_MouseUp(object sender, MouseButtonEventArgs e)
+        {
+            int _stream = Player1.Stream;
+            if (_CurrentUser == null || _CurrentSong < 0)
+                return;
+            long len = Bass.BASS_ChannelGetLength(_stream);
+            double multiplyer = 0;
+            Application.Current.Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() =>
+            {
+                multiplyer = e.GetPosition(rectangleProgressBarMain).X / rectangleProgressBarMain.Width;
+                long pos = (long)(multiplyer * len);
+                Bass.BASS_ChannelSetPosition(_stream, pos);
+            }));
+        }
+        #endregion
+
+        
     }
 }
 

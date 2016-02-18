@@ -12,41 +12,19 @@ namespace Player
     public class Player : IPlayer
     {
         private int _stream;
-        private int _fxEQ;
+        private BASSTimer _updateTimer = new BASSTimer(50);
+
         public Player()
         {
             BassNet.Registration("xxxddr3@gmail.com", "2X441017152222");
             if(!(Bass.BASS_Init(-1, 44100, BASSInit.BASS_DEVICE_DEFAULT, IntPtr.Zero)))
             {
-                throw new Exception("Unable to initialize instance of Player class");
-            }
-            SetBFX_EQ(_stream);
-        }
-        private void SetBFX_EQ(int channel)
-        {
-            _fxEQ = Bass.BASS_ChannelSetFX(channel, BASSFXType.BASS_FX_BFX_PEAKEQ, 0);
-            BASS_BFX_PEAKEQ eq = new BASS_BFX_PEAKEQ();
-            eq.fQ = 2f;
-            eq.fBandwidth = 2.5f;
-            eq.lChannel = BASSFXChan.BASS_BFX_CHANALL;
-
-            float[] InsertedValues = new float[18]{31f,63f,87f,125f,175f,250f,350f,500f,700f,
-                1000f,1400f,2000f,2800f,4000f,5600f,8000f,11200f,16000f};
-            for (int i = 0; i < 18; ++i)
-            {
-                eq.lBand = i;
-                eq.fCenter = InsertedValues[i];
-                Bass.BASS_FXSetParameters(_fxEQ, eq);
-                UpdateFX(i, 0f);
+                throw new Exception("Error while initializing Player instance");
             }
         }
-        private void UpdateFX(int band, float gain)
+        public int Stream
         {
-            BASS_BFX_PEAKEQ eq = new BASS_BFX_PEAKEQ();
-            eq.lBand = band;
-            Bass.BASS_FXGetParameters(_fxEQ, eq);
-            eq.fGain = gain;
-            Bass.BASS_FXSetParameters(_fxEQ, eq);
+            get { return _stream; }
         }
         public Status SetSource(Song playedSong)
         {
@@ -79,8 +57,9 @@ namespace Player
                 }
             }
         }
-        public Status Play()
+        public Status PlayAndStartTimer()
         {
+            _updateTimer.Start();
             if(Bass.BASS_ChannelPlay(_stream, false))
             {
                 return Status.OK;
@@ -90,8 +69,9 @@ namespace Player
                 return Status.Error;
             }
         }
-        public Status Stop()
+        public Status StopAndStopTimer()
         {
+            _updateTimer.Stop();
             if (Bass.BASS_ChannelStop(_stream))
             {
                 return Status.OK;
@@ -101,8 +81,9 @@ namespace Player
                 return Status.Error;
             }
         }
-        public Status Pause()
+        public Status PauseAndStopTimer()
         {
+            _updateTimer.Stop();
             if (Bass.BASS_ChannelPause(_stream))
             {
                 return Status.OK;
@@ -114,6 +95,12 @@ namespace Player
         }
         public Status AdjustSound()
         {
+            return Status.OK;
+        }
+        public Status SetTimer(int updateInterval, EventHandler e)
+        {
+            _updateTimer = new BASSTimer(updateInterval);
+            _updateTimer.Tick += e;
             return Status.OK;
         }
         ~Player()
