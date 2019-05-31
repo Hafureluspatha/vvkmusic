@@ -1,4 +1,4 @@
-# VVK Player
+# VK Music Player
 
 A music player for vk.com
 
