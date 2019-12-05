@@ -1,8 +1,8 @@
-# VK Music Player
+# VK Music Player (discontinued)
 
-A music player for vk.com
+A deprecated music player for vk.com
 
-This player is currently not working due to vk.com disabling the whole music API.
+The player doesn't working anymore due to the source site (vk.com) disabling music API.
 
 Main things I've done in this project:
 1. Created a WPF interface of an app from scratch,
