@@ -11,3 +11,4 @@ Main things I've done in this project:
 2.2 HTTP requests to API of an external site,  
 2.3 Working with external libraries (bass.dll)  
 
+The code is not fully optimized due to decent performance on a target platform in its current form.
