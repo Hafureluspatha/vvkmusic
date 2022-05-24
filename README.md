@@ -1,6 +1,6 @@
-# VK Music Player (discontinued)
+# VK Music Player
 
-A deprecated music player for vk.com
+A discontinued music player for vk.com
 
 The player doesn't work anymore due to the source site (vk.com) disabling music API.
 
